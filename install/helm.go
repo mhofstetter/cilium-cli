@@ -6,6 +6,7 @@ package install
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -66,6 +67,11 @@ func (k *K8sInstaller) generateManifests(ctx context.Context) error {
 }
 
 func (k *K8sInstaller) defaultHelmChartValues() (map[string]string, error) {
+	mergedUserHelmValues, err := helm.MergedValues(k.params.HelmOpts)
+	if err != nil {
+		return nil, err
+	}
+
 	helmMapOpts := map[string]string{}
 
 	switch {
@@ -138,6 +144,29 @@ func (k *K8sInstaller) defaultHelmChartValues() (map[string]string, error) {
 		// TODO(aanm) to keep the previous behavior unchanged we will set the number
 		// of the operator replicas to 1. Ideally this should be the default in the helm chart
 		helmMapOpts["operator.replicas"] = "1"
+
+		operatorReplicasOverridden := true
+		operatorReplicas, err := mergedUserHelmValues.PathValue("operator.replicas")
+		if errors.As(err, &chartutil.ErrNoValue{}) {
+			operatorReplicasOverridden = false
+		} else if err != nil {
+			return nil, err
+		}
+
+		operatorUpdateStrategyOverridden := true
+		if _, err := mergedUserHelmValues.PathValue("operator.updateStrategy"); errors.As(err, &chartutil.ErrNoValue{}) {
+			operatorUpdateStrategyOverridden = false
+		} else if err != nil {
+			return nil, err
+		}
+
+		if (!operatorReplicasOverridden || operatorReplicasOverridden && operatorReplicas == "1") && !operatorUpdateStrategyOverridden {
+			// Change maxUnavailable of rolling update to 100% to prevent blocked updates on single node k8s clusters due
+			// to conflicts with the default podAntiAffinity.
+			// This should only be configured, if there is 1 replica and the user doesn't provide a specific
+			// update strategy.
+			helmMapOpts["operator.updateStrategy.rollingUpdate.maxUnavailable"] = "100%"
+		}
 
 		switch k.params.Encryption {
 		case encryptionIPsec:
