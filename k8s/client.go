@@ -21,6 +21,8 @@ import (
 	"github.com/distribution/distribution/reference"
 	"helm.sh/helm/v3/pkg/chartutil"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -392,6 +394,18 @@ func (c *Client) CiliumLogs(ctx context.Context, namespace, pod string, since ti
 		err = fmt.Errorf("error reading cilium-agent logs for %s/%s: %w", namespace, pod, err)
 	}
 	return buf.String(), err
+}
+
+func (c *Client) ListDeployments(ctx context.Context, namespace string, options metav1.ListOptions) (*appsv1.DeploymentList, error) {
+	return c.Clientset.AppsV1().Deployments(namespace).List(ctx, options)
+}
+
+func (c *Client) ListJobs(ctx context.Context, namespace string, options metav1.ListOptions) (*batchv1.JobList, error) {
+	return c.Clientset.BatchV1().Jobs(namespace).List(ctx, options)
+}
+
+func (c *Client) ListHorizontalPodAutoscalers(ctx context.Context, namespace string, options metav1.ListOptions) (*autoscalingv2.HorizontalPodAutoscalerList, error) {
+	return c.Clientset.AutoscalingV2().HorizontalPodAutoscalers(namespace).List(ctx, options)
 }
 
 func (c *Client) ListServices(ctx context.Context, namespace string, options metav1.ListOptions) (*corev1.ServiceList, error) {

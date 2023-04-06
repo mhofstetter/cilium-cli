@@ -352,6 +352,62 @@ func (c *Collector) Run() error {
 			},
 		},
 		{
+			Description: "Collecting Kubernetes horizontal pod autoscaler",
+			Quick:       true,
+			Task: func(ctx context.Context) error {
+				v, err := c.Client.ListDeployments(ctx, corev1.NamespaceAll, metav1.ListOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to collect Kubernetes horizontal pod autoscaler: %w", err)
+				}
+				if err := c.WriteYAML(kubernetesDeploymentsFileName, v); err != nil {
+					return fmt.Errorf("failed to collect Kubernetes horizontal pod autoscaler: %w", err)
+				}
+				return nil
+			},
+		},
+		{
+			Description: "Collecting Kubernetes deployments",
+			Quick:       true,
+			Task: func(ctx context.Context) error {
+				v, err := c.Client.ListDeployments(ctx, corev1.NamespaceAll, metav1.ListOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to collect Kubernetes deployments: %w", err)
+				}
+				if err := c.WriteYAML(kubernetesDeploymentsFileName, v); err != nil {
+					return fmt.Errorf("failed to collect Kubernetes deployments: %w", err)
+				}
+				return nil
+			},
+		},
+		{
+			Description: "Collecting Kubernetes daemonsets",
+			Quick:       true,
+			Task: func(ctx context.Context) error {
+				v, err := c.Client.ListDaemonSet(ctx, corev1.NamespaceAll, metav1.ListOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to collect Kubernetes daemonsets: %w", err)
+				}
+				if err := c.WriteYAML(kubernetesDaemonSetsFileName, v); err != nil {
+					return fmt.Errorf("failed to collect Kubernetes daemonsets: %w", err)
+				}
+				return nil
+			},
+		},
+		{
+			Description: "Collecting Kubernetes jobs",
+			Quick:       true,
+			Task: func(ctx context.Context) error {
+				v, err := c.Client.ListJobs(ctx, corev1.NamespaceAll, metav1.ListOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to collect Kubernetes jobs: %w", err)
+				}
+				if err := c.WriteYAML(kubernetesJobsFileName, v); err != nil {
+					return fmt.Errorf("failed to collect Kubernetes jobs: %w", err)
+				}
+				return nil
+			},
+		},
+		{
 			Description: "Collecting Kubernetes services",
 			Quick:       true,
 			Task: func(ctx context.Context) error {

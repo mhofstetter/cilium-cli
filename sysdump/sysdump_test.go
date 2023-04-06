@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/check.v1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -433,6 +434,14 @@ func (c *fakeClient) ListCiliumNodes(ctx context.Context) (*ciliumv2.CiliumNodeL
 }
 
 func (c *fakeClient) ListDaemonSet(ctx context.Context, namespace string, o metav1.ListOptions) (*appsv1.DaemonSetList, error) {
+	panic("implement me")
+}
+
+func (c *fakeClient) ListDeployments(ctx context.Context, namespace string, options metav1.ListOptions) (*appsv1.DeploymentList, error) {
+	panic("implement me")
+}
+
+func (c *fakeClient) ListJobs(ctx context.Context, namespace string, options metav1.ListOptions) (*batchv1.JobList, error) {
 	panic("implement me")
 }
 
