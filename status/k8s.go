@@ -214,14 +214,18 @@ func (k *K8sStatusCollector) podCount(ctx context.Context, status *Status) error
 	return nil
 }
 
-func (k *K8sStatusCollector) daemonSetStatus(ctx context.Context, status *Status, name string) error {
+func (k *K8sStatusCollector) daemonSetStatus(ctx context.Context, status *Status, name string) (bool, error) {
 	daemonSet, err := k.client.GetDaemonSet(ctx, k.params.Namespace, name, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		return true, err
+	}
+
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if daemonSet == nil {
-		return fmt.Errorf("DaemonSet %s is not available", name)
+		return false, fmt.Errorf("DaemonSet %s is not available", name)
 	}
 
 	stateCount := PodStateCount{Type: "DaemonSet"}
@@ -254,7 +258,7 @@ func (k *K8sStatusCollector) daemonSetStatus(ctx context.Context, status *Status
 		status.AddAggregatedError(name, name, fmt.Errorf("daemonset %s is rolling out - %d out of %d pods updated", name, daemonSet.Status.UpdatedNumberScheduled, daemonSet.Status.DesiredNumberScheduled))
 	}
 
-	return nil
+	return false, nil
 }
 
 type podStatusCallback func(ctx context.Context, status *Status, name string, pod *corev1.Pod)
@@ -368,7 +372,7 @@ func (k *K8sStatusCollector) status(ctx context.Context) *Status {
 		{
 			name: defaults.AgentDaemonSetName,
 			task: func(_ context.Context) error {
-				err := k.daemonSetStatus(ctx, status, defaults.AgentDaemonSetName)
+				_, err := k.daemonSetStatus(ctx, status, defaults.AgentDaemonSetName)
 				status.mutex.Lock()
 				defer status.mutex.Unlock()
 
@@ -377,6 +381,24 @@ func (k *K8sStatusCollector) status(ctx context.Context) *Status {
 					status.CollectionError(err)
 				}
 
+				return err
+			},
+		},
+		{
+			name: defaults.EnvoyDaemonSetName,
+			task: func(_ context.Context) error {
+				disabled, err := k.daemonSetStatus(ctx, status, defaults.EnvoyDaemonSetName)
+				status.mutex.Lock()
+				defer status.mutex.Unlock()
+
+				status.SetDisabled(defaults.EnvoyDaemonSetName, defaults.EnvoyDaemonSetName, disabled)
+
+				if err != nil && !disabled {
+					status.AddAggregatedError(defaults.EnvoyDaemonSetName, defaults.EnvoyDaemonSetName, err)
+					status.CollectionError(err)
+				}
+
+				err = k.podStatus(ctx, status, defaults.EnvoyDaemonSetName, "name=cilium-envoy", nil)
 				return err
 			},
 		},
