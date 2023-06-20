@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	contextName string
-	namespace   string
+	contextName    string
+	namespace      string
+	spireNamespace string
 
 	k8sClient *k8s.Client
 
@@ -76,6 +77,7 @@ cilium connectivity test`,
 
 	cmd.PersistentFlags().StringVar(&contextName, "context", "", "Kubernetes configuration context")
 	cmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "kube-system", "Namespace Cilium is running in")
+	cmd.PersistentFlags().StringVarP(&spireNamespace, "spire-namespace", "n", "cilium-spire", "Namespace Cilium SPIRE is running in")
 
 	cmd.AddCommand(
 		newCmdBgp(),

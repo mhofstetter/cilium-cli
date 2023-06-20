@@ -37,6 +37,7 @@ var (
 
 type k8sStatusMockClient struct {
 	daemonSet          map[string]*appsv1.DaemonSet
+	statefulSet        map[string]*appsv1.StatefulSet
 	deployment         map[string]*appsv1.Deployment
 	podList            map[string]*corev1.PodList
 	status             map[string]*models.StatusResponse
@@ -51,6 +52,7 @@ func newK8sStatusMockClient() (c *k8sStatusMockClient) {
 
 func (c *k8sStatusMockClient) reset() {
 	c.daemonSet = map[string]*appsv1.DaemonSet{}
+	c.statefulSet = map[string]*appsv1.StatefulSet{}
 	c.podList = map[string]*corev1.PodList{}
 	c.status = map[string]*models.StatusResponse{}
 	c.ciliumEndpointList = map[string]*ciliumv2.CiliumEndpointList{}
@@ -130,6 +132,10 @@ func (c *k8sStatusMockClient) setDaemonSet(namespace, name, filter string, desir
 
 func (c *k8sStatusMockClient) GetDaemonSet(_ context.Context, namespace, name string, _ metav1.GetOptions) (*appsv1.DaemonSet, error) {
 	return c.daemonSet[namespace+"/"+name], nil
+}
+
+func (c *k8sStatusMockClient) GetStatefulSet(_ context.Context, namespace, name string, _ metav1.GetOptions) (*appsv1.StatefulSet, error) {
+	return c.statefulSet[namespace+"/"+name], nil
 }
 
 func (c *k8sStatusMockClient) GetDeployment(_ context.Context, namespace, name string, _ metav1.GetOptions) (*appsv1.Deployment, error) {

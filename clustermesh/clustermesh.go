@@ -426,6 +426,7 @@ type k8sClusterMeshImplementation interface {
 	GetService(ctx context.Context, namespace, name string, opts metav1.GetOptions) (*corev1.Service, error)
 	PatchDaemonSet(ctx context.Context, namespace, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions) (*appsv1.DaemonSet, error)
 	GetDaemonSet(ctx context.Context, namespace, name string, options metav1.GetOptions) (*appsv1.DaemonSet, error)
+	GetStatefulSet(ctx context.Context, namespace, name string, options metav1.GetOptions) (*appsv1.StatefulSet, error)
 	ListNodes(ctx context.Context, options metav1.ListOptions) (*corev1.NodeList, error)
 	ListPods(ctx context.Context, namespace string, options metav1.ListOptions) (*corev1.PodList, error)
 	AutodetectFlavor(ctx context.Context) k8s.Flavor

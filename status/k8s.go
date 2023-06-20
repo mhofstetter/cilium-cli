@@ -32,9 +32,10 @@ const (
 )
 
 type K8sStatusParameters struct {
-	Namespace    string
-	Wait         bool
-	WaitDuration time.Duration
+	Namespace      string
+	SPIRENamespace string
+	Wait           bool
+	WaitDuration   time.Duration
 	// WarningFreePods specifies a list of pods which are required to be
 	// warning free. This takes precedence over IgnoreWarnings and is only
 	// used if Wait is true.
@@ -61,6 +62,7 @@ type k8sImplementation interface {
 	CiliumStatus(ctx context.Context, namespace, pod string) (*models.StatusResponse, error)
 	GetDaemonSet(ctx context.Context, namespace, name string, options metav1.GetOptions) (*appsv1.DaemonSet, error)
 	GetDeployment(ctx context.Context, namespace, name string, options metav1.GetOptions) (*appsv1.Deployment, error)
+	GetStatefulSet(ctx context.Context, namespace, name string, options metav1.GetOptions) (*appsv1.StatefulSet, error)
 	ListPods(ctx context.Context, namespace string, options metav1.ListOptions) (*corev1.PodList, error)
 	ListCiliumEndpoints(ctx context.Context, namespace string, options metav1.ListOptions) (*ciliumv2.CiliumEndpointList, error)
 	CiliumLogs(ctx context.Context, namespace, pod string, since time.Time, filter *regexp.Regexp) (string, error)
@@ -264,6 +266,53 @@ func (k *K8sStatusCollector) daemonSetStatus(ctx context.Context, status *Status
 	return false, nil
 }
 
+func (k *K8sStatusCollector) statefulSetStatus(ctx context.Context, status *Status, name string) (bool, error) {
+	statefulSet, err := k.client.GetStatefulSet(ctx, k.params.Namespace, name, metav1.GetOptions{})
+	if k8serrors.IsNotFound(err) {
+		return true, err
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	if statefulSet == nil {
+		return false, fmt.Errorf("StatefulSet %s is not available", name)
+	}
+
+	stateCount := PodStateCount{Type: "StatefulSet"}
+	stateCount.Desired = int(statefulSet.Status.UpdatedReplicas)
+	stateCount.Ready = int(statefulSet.Status.ReadyReplicas)
+	stateCount.Available = int(statefulSet.Status.AvailableReplicas)
+	stateCount.Unavailable = int(statefulSet.Status.UpdatedReplicas - statefulSet.Status.AvailableReplicas)
+
+	status.mutex.Lock()
+	defer status.mutex.Unlock()
+
+	status.PodState[name] = stateCount
+
+	notReady := int(statefulSet.Status.UpdatedReplicas) - int(statefulSet.Status.ReadyReplicas)
+	if notReady > 0 {
+		status.AddAggregatedError(name, name, fmt.Errorf("%d pods of StatefulSet %s are not ready", notReady, name))
+	}
+
+	if unavailable := stateCount.Unavailable - notReady; unavailable > 0 {
+		status.AddAggregatedWarning(name, name, fmt.Errorf("%d pods of StatefulSet %s are not available", unavailable, name))
+	}
+
+	// ObservedGeneration behind: StatefulSetController has not yet noticed the latest change
+	if statefulSet.Generation != statefulSet.Status.ObservedGeneration {
+		status.AddAggregatedError(name, name, fmt.Errorf("statefulset %s is updated but rollout has not started", name))
+	}
+
+	//// DaemonSet change is not fully rolled out
+	//if statefulSet.Status.UpdatedNumberScheduled < statefulSet.Status.UpdatedReplicas {
+	//	status.AddAggregatedError(name, name, fmt.Errorf("statefulset %s is rolling out - %d out of %d pods updated", name, statefulSet.Status.UpdatedNumberScheduled, statefulSet.Status.DesiredNumberScheduled))
+	//}
+
+	return false, nil
+}
+
 type podStatusCallback func(ctx context.Context, status *Status, name string, pod *corev1.Pod)
 
 func (k *K8sStatusCollector) podStatus(ctx context.Context, status *Status, name, filter string, callback podStatusCallback) error {
@@ -405,6 +454,54 @@ func (k *K8sStatusCollector) status(ctx context.Context) *Status {
 				}
 
 				if err := k.podStatus(ctx, status, defaults.EnvoyDaemonSetName, "name=cilium-envoy", nil); err != nil {
+					status.CollectionError(err)
+				}
+
+				return nil
+			},
+		},
+		{
+			name: defaults.SPIREAgentDaemonSetName,
+			task: func(_ context.Context) error {
+				disabled, err := k.daemonSetStatus(ctx, status, defaults.SPIREAgentDaemonSetName)
+				status.mutex.Lock()
+				defer status.mutex.Unlock()
+
+				if disabled {
+					status.SetDisabled(defaults.SPIREAgentDaemonSetName, defaults.SPIREAgentDaemonSetName, disabled)
+					return nil
+				}
+
+				if err != nil {
+					status.AddAggregatedError(defaults.SPIREAgentDaemonSetName, defaults.SPIREAgentDaemonSetName, err)
+					status.CollectionError(err)
+				}
+
+				if err := k.podStatus(ctx, status, defaults.SPIREAgentDaemonSetName, "app=spire-agent", nil); err != nil {
+					status.CollectionError(err)
+				}
+
+				return nil
+			},
+		},
+		{
+			name: defaults.SPIREServerStatefulSetName,
+			task: func(_ context.Context) error {
+				disabled, err := k.statefulSetStatus(ctx, status, defaults.SPIREServerStatefulSetName)
+				status.mutex.Lock()
+				defer status.mutex.Unlock()
+
+				if disabled {
+					status.SetDisabled(defaults.SPIREServerStatefulSetName, defaults.SPIREServerStatefulSetName, disabled)
+					return nil
+				}
+
+				if err != nil {
+					status.AddAggregatedError(defaults.SPIREServerStatefulSetName, defaults.SPIREServerStatefulSetName, err)
+					status.CollectionError(err)
+				}
+
+				if err := k.podStatus(ctx, status, defaults.SPIREServerStatefulSetName, "app=spire-server", nil); err != nil {
 					status.CollectionError(err)
 				}
 
