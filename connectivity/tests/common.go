@@ -20,11 +20,18 @@ type labelsOption struct {
 	destinationLabels map[string]string
 	method            string
 	path              string
+	retries           int
 }
 
 func WithMethod(method string) Option {
 	return func(option *labelsOption) {
 		option.method = method
+	}
+}
+
+func WithRetries(retries int) Option {
+	return func(option *labelsOption) {
+		option.retries = retries
 	}
 }
 

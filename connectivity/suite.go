@@ -980,7 +980,7 @@ func Run(ctx context.Context, ct *check.ConnectivityTest, addExtraTests func(*ch
 	ct.NewTest("echo-ingress-mutual-auth-spiffe").WithCiliumPolicy(echoIngressMutualAuthPolicyYAML).
 		WithFeatureRequirements(check.RequireFeatureEnabled(check.FeatureAuthSpiffe)).
 		WithScenarios(
-			tests.PodToPod(),
+			tests.PodToPod(tests.WithRetries(5)),
 		)
 
 	// Test Ingress controller

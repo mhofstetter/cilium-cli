@@ -6,6 +6,7 @@ package tests
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/cilium/cilium-cli/connectivity/check"
 )
@@ -22,6 +23,7 @@ func PodToPod(opts ...Option) check.Scenario {
 		sourceLabels:      options.sourceLabels,
 		destinationLabels: options.destinationLabels,
 		method:            options.method,
+		retries:           options.retries,
 	}
 }
 
@@ -30,6 +32,7 @@ type podToPod struct {
 	sourceLabels      map[string]string
 	destinationLabels map[string]string
 	method            string
+	retries           int
 }
 
 func (s *podToPod) Name() string {
@@ -51,11 +54,17 @@ func (s *podToPod) Run(ctx context.Context, t *check.Test) {
 			}
 			t.ForEachIPFamily(func(ipFam check.IPFamily) {
 				t.NewAction(s, fmt.Sprintf("curl-%s-%d", ipFam, i), &client, echo, ipFam).Run(func(a *check.Action) {
-					if s.method == "" {
-						a.ExecInPod(ctx, ct.CurlCommand(echo, ipFam))
-					} else {
-						a.ExecInPod(ctx, ct.CurlCommand(echo, ipFam, "-X", s.method))
+					var curlOpts []string
+
+					if s.method != "" {
+						curlOpts = append(curlOpts, "-X", s.method)
 					}
+
+					if s.retries > 0 {
+						curlOpts = append(curlOpts, "--retry", strconv.Itoa(s.retries))
+					}
+
+					a.ExecInPod(ctx, ct.CurlCommand(echo, ipFam, curlOpts...))
 
 					a.ValidateFlows(ctx, client, a.GetEgressRequirements(check.FlowParameters{}))
 					a.ValidateFlows(ctx, echo, a.GetIngressRequirements(check.FlowParameters{}))
