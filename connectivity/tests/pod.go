@@ -23,6 +23,7 @@ func PodToPod(opts ...Option) check.Scenario {
 		sourceLabels:      options.sourceLabels,
 		destinationLabels: options.destinationLabels,
 		method:            options.method,
+		rc:                options.rc,
 	}
 }
 
@@ -31,6 +32,7 @@ type podToPod struct {
 	sourceLabels      map[string]string
 	destinationLabels map[string]string
 	method            string
+	rc                *retryCondition
 }
 
 func (s *podToPod) Name() string {
@@ -51,11 +53,14 @@ func (s *podToPod) Run(ctx context.Context, t *check.Test) {
 				continue
 			}
 			t.ForEachIPFamily(func(ipFam features.IPFamily) {
+				httpOpts := s.rc.CurlOptions(echo, features.IPFamilyAny, client, ct.Params())
 				t.NewAction(s, fmt.Sprintf("curl-%s-%d", ipFam, i), &client, echo, ipFam).Run(func(a *check.Action) {
 					if s.method == "" {
-						a.ExecInPod(ctx, ct.CurlCommand(echo, ipFam))
+						a.ExecInPod(ctx, ct.CurlCommand(echo, ipFam, httpOpts...))
 					} else {
-						a.ExecInPod(ctx, ct.CurlCommand(echo, ipFam, "-X", s.method))
+						opts := []string{"-X", s.method}
+						opts = append(opts, httpOpts...)
+						a.ExecInPod(ctx, ct.CurlCommand(echo, ipFam, opts...))
 					}
 
 					a.ValidateFlows(ctx, client, a.GetEgressRequirements(check.FlowParameters{}))

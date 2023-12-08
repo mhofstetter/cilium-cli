@@ -21,11 +21,23 @@ type labelsOption struct {
 	destinationLabels map[string]string
 	method            string
 	path              string
+	rc                *retryCondition
 }
 
 func WithMethod(method string) Option {
 	return func(option *labelsOption) {
 		option.method = method
+	}
+}
+
+func WithRetryCondition(opts ...RetryOption) Option {
+	return func(option *labelsOption) {
+		rc := &retryCondition{}
+		for _, ro := range opts {
+			ro(rc)
+		}
+
+		option.rc = rc
 	}
 }
 
